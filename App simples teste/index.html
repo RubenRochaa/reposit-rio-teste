@@ -1,12 +1,223 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meu nome é Ruben</title>
-    <link rel="stylesheet" href="index.css">
+    <title>Gerador de Cores Aleatórias</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@600;800&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            transition: background-color 0.5s ease, color 0.5s ease;
+        }
+
+        .mono-font {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Continuous backdrop blur card */
+        .glass-card {
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            transition: border-color 0.5s ease, background-color 0.5s ease, box-shadow 0.3s ease;
+        }
+
+        /* Tooltip animation for clipboard feedback */
+        .toast-popup {
+            transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        /* Button ripple and hover elevation */
+        .btn-action {
+            transition: transform 0.15s ease, opacity 0.2s ease, background-color 0.3s ease, color 0.3s ease;
+        }
+
+        .btn-action:active {
+            transform: scale(0.95);
+        }
+
+        /* Prevent text selection when clicking rapidly on background */
+        .no-select {
+            user-select: none;
+            -webkit-user-select: none;
+        }
+    </style>
 </head>
-<body>
-    <h1>Meu nome é Ruben, olá!!</h1>
+<body id="app-body" class="min-h-screen w-full flex flex-col justify-between items-center p-6 sm:p-10 no-select cursor-pointer overflow-hidden">
+
+    <header class="w-full max-w-md text-center pt-2">
+        <h1 class="text-sm font-semibold tracking-widest uppercase opacity-80 transition-opacity">
+            Gerador de Cores
+        </h1>
+    </header>
+
+    <main class="w-full max-w-md my-auto flex flex-col items-center justify-center">
+        <div id="main-card" class="glass-card w-full rounded-3xl p-8 sm:p-12 text-center flex flex-col items-center justify-center shadow-2xl relative border border-white/20">
+            
+            <!-- Toast Feedback Notification -->
+            <div id="toast" class="toast-popup absolute -top-12 bg-slate-900 text-white text-xs font-semibold px-4 py-2 rounded-full shadow-lg opacity-0 pointer-events-none transform translate-y-2 flex items-center space-x-1.5">
+                <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path>
+                </svg>
+                <span>Copiado!</span>
+            </div>
+
+            <p class="text-xs uppercase tracking-wider font-semibold opacity-70 mb-3">Código HEX</p>
+            
+            <button id="hex-btn" title="Clique para copiar" class="group relative inline-flex items-center justify-center p-2 rounded-xl hover:bg-black/5 dark:hover:bg-white/10 transition-colors focus:outline-none">
+                <span id="hex-code" class="mono-font text-4xl sm:text-5xl font-extrabold tracking-wider">
+                    #4F46E5
+                </span>
+                <svg id="copy-icon" class="w-6 h-6 ml-3 opacity-50 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                </svg>
+            </button>
+
+            <button id="generate-btn" class="btn-action mt-8 w-full sm:w-auto px-8 py-3.5 rounded-2xl font-bold text-sm tracking-wide shadow-md focus:outline-none">
+                Gerar Nova Cor
+            </button>
+        </div>
+    </main>
+
+    <footer class="w-full max-w-md text-center pb-2">
+        <p class="text-xs opacity-60">
+            Clique em qualquer lugar da tela ou pressione <kbd class="px-2 py-1 bg-black/10 dark:bg-white/10 rounded font-mono text-[10px]">Espaço</kbd>
+        </p>
+    </footer>
+
+    <script>
+        // DOM Elements
+        const body = document.getElementById('app-body');
+        const hexCodeEl = document.getElementById('hex-code');
+        const hexBtn = document.getElementById('hex-btn');
+        const generateBtn = document.getElementById('generate-btn');
+        const mainCard = document.getElementById('main-card');
+        const toast = document.getElementById('toast');
+
+        let currentHex = "#4F46E5";
+        let toastTimeout;
+
+        /**
+         * Generates a random 6-character hex color code
+         */
+        function generateRandomHex() {
+            const hexChars = '0123456789ABCDEF';
+            let hex = '#';
+            for (let i = 0; i < 6; i++) {
+                hex += hexChars[Math.floor(Math.random() * 16)];
+            }
+            return hex;
+        }
+
+        /**
+         * Determines if color is bright or dark using YIQ luminance formula
+         * @param {string} hex - Hex color string
+         * @returns {boolean} True if color is bright
+         */
+        function isBrightColor(hex) {
+            const cleanHex = hex.replace('#', '');
+            const r = parseInt(cleanHex.substring(0, 2), 16);
+            const g = parseInt(cleanHex.substring(2, 4), 16);
+            const b = parseInt(cleanHex.substring(4, 6), 16);
+            
+            // Perceptual brightness formula
+            const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+            return yiq >= 128;
+        }
+
+        /**
+         * Updates app state and interface colors
+         */
+        function applyNewColor(hex) {
+            currentHex = hex || generateRandomHex();
+            const bright = isBrightColor(currentHex);
+
+            // Update background
+            body.style.backgroundColor = currentHex;
+            
+            // Adjust adaptive text and contrast styles
+            if (bright) {
+                body.style.color = '#0f172a'; // Dark Slate
+                mainCard.style.backgroundColor = 'rgba(255, 255, 255, 0.35)';
+                mainCard.style.borderColor = 'rgba(0, 0, 0, 0.1)';
+                generateBtn.style.backgroundColor = '#0f172a';
+                generateBtn.style.color = '#ffffff';
+            } else {
+                body.style.color = '#f8fafc'; // Bright Slate
+                mainCard.style.backgroundColor = 'rgba(0, 0, 0, 0.3)';
+                mainCard.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+                generateBtn.style.backgroundColor = '#ffffff';
+                generateBtn.style.color = '#0f172a';
+            }
+
+            // Update hex display
+            hexCodeEl.textContent = currentHex;
+        }
+
+        /**
+         * Copies current hex code to clipboard using fallback mechanism
+         */
+        function copyHexToClipboard() {
+            // Create off-screen element for document.execCommand('copy')
+            const textArea = document.createElement('textarea');
+            textArea.value = currentHex;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-9999px';
+            document.body.appendChild(textArea);
+            textArea.select();
+
+            try {
+                document.execCommand('copy');
+                showToast();
+            } catch (err) {
+                console.error('Falha ao copiar:', err);
+            } finally {
+                document.body.removeChild(textArea);
+            }
+        }
+
+        /**
+         * Displays the discreet "Copiado!" toast message
+         */
+        function showToast() {
+            clearTimeout(toastTimeout);
+            toast.classList.remove('opacity-0', 'translate-y-2');
+            toast.classList.add('opacity-100', 'translate-y-0');
+
+            toastTimeout = setTimeout(() => {
+                toast.classList.remove('opacity-100', 'translate-y-0');
+                toast.classList.add('opacity-0', 'translate-y-2');
+            }, 1800);
+        }
+
+        // Global Click on background to change color
+        body.addEventListener('click', (e) => {
+            // Ignore clicks if user interacted with card controls
+            if (e.target.closest('#hex-btn')) {
+                copyHexToClipboard();
+                return;
+            }
+            if (e.target.closest('#generate-btn')) {
+                applyNewColor();
+                return;
+            }
+            applyNewColor();
+        });
+
+        // Keyboard Spacebar trigger
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                applyNewColor();
+            }
+        });
+
+        // Initialize with default color
+        applyNewColor(currentHex);
+    </script>
 </body>
 </html>
